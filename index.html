@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Gesture Particle Playground (Color Breathing)</title>
+    <title>3D Gesture Particle Playground (Final Advanced)</title>
     <style>
         /* Minimal, Modern CSS */
         body { margin: 0; overflow: hidden; background-color: #000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
@@ -74,8 +74,8 @@
                 <input type="range" id="size-slider" min="0.5" max="10.0" step="0.1" value="3.0">
             </label>
             <label>
-                Particle Count (Max 150k)
-                <span class="slider-value">50000</span>
+                Particle Count (Active)
+                <span id="particle-count-display" class="slider-value">50000</span>
             </label>
         </div>
 
@@ -113,17 +113,18 @@
         <p>1. **Gesture Control (Needs Camera)**: Turn on "Enable Gesture Control".</p>
         <ul>
             <li>**Tension (Fingers Spread vs. Fist)**: Controls the particle **spread/expansion**.</li>
-            <li>**New: Color Breathing**: Hold a **Fist** to slowly cycle colors. Release the fist for a **Color Burst**!</li>
-            <li>**Hand Distance (Closer/Further)**: Controls the global particle **scale**.</li>
+            <li>**Color Breathing**: Hold a **Fist** (low tension) to slowly cycle colors. Release the fist for a **Color Burst**!</li>
+            <li>**Hand Distance**: Controls the global particle **scale**.</li>
             <li>**Fireworks Template**: A quick closing motion (snap) triggers a burst.</li>
         </ul>
-        <p>2. **Performance**: If slow, reduce **Particle Count**.</p>
+        <p>2. **Performance**: Default active count is 50k. If slow, check browser console for WebGL warnings.</p>
     </div>
 
     <script>
         // --- Core Configuration and Constants ---
         const MAX_PARTICLE_COUNT = 150000;
-        const PARTICLES_TO_USE = 50000;
+        const DEFAULT_PARTICLE_COUNT = 50000;
+        let currentParticleCount = DEFAULT_PARTICLE_COUNT;
         
         // Particle Templates: Define initial positions and behavior
         const PARTICLE_TEMPLATES = {
@@ -214,14 +215,17 @@
 
             varying vec3 v_color;
 
-            // Simple pseudo-random function
-            float rand(vec2 co) {
-                return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+            // Hash function for random-like noise (works well in GLSL)
+            float hash(float n) { return fract(sin(n) * 43758.5453); }
+            vec3 hash3(vec3 p) {
+                return fract(sin(vec3(dot(p, vec3(1.0, 57.0, 113.0)),
+                                      dot(p, vec3(57.0, 113.0, 1.0)),
+                                      dot(p, vec3(113.0, 1.0, 57.0)))) * 43758.5453);
             }
-
-            // Simplified Perlin Noise (or time-based noise)
-            float snoise(vec3 v){
-              return (sin(v.x * 0.1) + cos(v.y * 0.1) + sin(v.z * 0.1)) * 0.33;
+            
+            // Simple 3D noise (fast, stable, and guaranteed to compile)
+            float snoise3(vec3 p) {
+                return (hash(p.x * 10.0 + hash(p.y * 10.0 + hash(p.z * 10.0))) - 0.5) * 2.0;
             }
 
             void main() {
@@ -238,15 +242,15 @@
                 vec3 displacement = finalPosition - u_center;
                 float dist = length(displacement);
                 
+                // Attraction/Repulsion
                 vec3 attraction = -normalize(displacement) * u_attractionStrength * 0.05 / max(dist, 1.0);
-                
                 finalPosition += attraction * age * 0.1; 
 
-                // 3. Per-particle noise for organic motion 
+                // 3. Per-particle noise for organic motion (Fixed using snoise3)
                 vec3 noise = vec3(
-                    snoise(finalPosition * 0.1 + u_time * 0.2),
-                    snoise(finalPosition * 0.1 + u_time * 0.2 + 10.0),
-                    snoise(finalPosition * 0.1 + u_time * 0.2 + 20.0)
+                    snoise3(finalPosition * 0.1 + u_time * 0.2),
+                    snoise3(finalPosition * 0.1 + u_time * 0.2 + 10.0),
+                    snoise3(finalPosition * 0.1 + u_time * 0.2 + 20.0)
                 ) * u_noiseStrength * 5.0;
                 finalPosition += noise;
                 
@@ -266,8 +270,8 @@
 
         const particleFragmentShader = `
             uniform vec3 u_baseColor;
-            uniform float u_breatheMix; // 0.0=Base Color, 1.0=Breathing Color
-            uniform vec3 u_breatheColor; // Current color during breathing/burst
+            uniform float u_breatheMix; 
+            uniform vec3 u_breatheColor;
 
             varying vec3 v_color;
 
@@ -280,7 +284,7 @@
                 // Stronger glow/fade 
                 float alpha = pow(1.0 - r, 4.0);
                 
-                // Mix the base color with the breathing color based on u_breatheMix
+                // Mix the base color with the breathing color
                 vec3 finalColor = mix(u_baseColor, u_breatheColor, u_breatheMix);
                 
                 // Apply vertex color (v_color) for intensity/fireworks fade
@@ -291,7 +295,6 @@
         // --- Three.js Setup Variables ---
         let scene, camera, renderer, particles;
         let clock = new THREE.Clock();
-        let currentParticleCount = PARTICLES_TO_USE;
 
         // --- Particle State and Attributes ---
         let geometry, material;
@@ -328,26 +331,20 @@
         let prevTension = 0.0;
         let lastBurstTime = 0;
         const GESTURE_SETTINGS = {
-            tensionMin: 0.05, // Fist (trigger breathing)
-            tensionMax: 0.25, // Open hand
-            tensionHoldThreshold: 0.1, // Tension level to maintain 'fist' state
+            tensionMin: 0.05,
+            tensionMax: 0.25,
+            tensionHoldThreshold: 0.1, 
             spreadLerpFactor: 0.1,
             scaleLerpFactor: 0.05,
             fireworksSnapThreshold: 0.05,
         };
 
         // --- Utility Functions ---
-
         const mapRange = (value, min1, max1, min2, max2) => {
             value = Math.min(Math.max(value, min1), max1);
             return min2 + (max2 - min2) * ((value - min1) / (max1 - min1));
         };
-
         const lerp = (a, b, t) => a + (b - a) * t;
-        const smoothstep = (edge0, edge1, x) => {
-            x = THREE.MathUtils.clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
-            return x * x * (3.0 - 2.0 * x);
-        }
 
         // --- Three.js Functions ---
 
@@ -378,7 +375,7 @@
             geometry.setAttribute('a_velocity', attributes.a_velocity);
             geometry.setAttribute('a_birthTime', attributes.a_birthTime);
             geometry.setAttribute('color', attributes.color);
-            geometry.setDrawRange(0, currentParticleCount);
+            geometry.setDrawRange(0, currentParticleCount); // Set initial draw count
 
             material = new THREE.ShaderMaterial({
                 uniforms: {
@@ -390,8 +387,8 @@
                     u_noiseStrength: { value: particleSettings.noiseStrength },
                     u_attractionStrength: { value: particleSettings.attractionStrength },
                     u_center: { value: new THREE.Vector3(0, 0, 0) },
-                    u_breatheMix: { value: 0.0 }, // New: Mix factor for breathing color
-                    u_breatheColor: { value: new THREE.Color() }, // New: Current color of the breath/burst
+                    u_breatheMix: { value: 0.0 }, 
+                    u_breatheColor: { value: new THREE.Color() },
                 },
                 vertexShader: particleVertexShader,
                 fragmentShader: particleFragmentShader,
@@ -420,7 +417,7 @@
             const velAttr = attributes.a_velocity;
             const birthAttr = attributes.a_birthTime;
 
-            template.init_fn(posAttr, currentParticleCount);
+            template.init_fn(posAttr, MAX_PARTICLE_COUNT); // Use MAX count for initializing buffer
             posAttr.needsUpdate = true;
             
             for (let i = 0; i < currentParticleCount * 3; i++) {
@@ -434,38 +431,30 @@
         }
 
         function triggerColorBurst() {
-             // Set mix to 1.0 (fully breathing color) immediately
             material.uniforms.u_breatheMix.value = 1.0;
-            // Set the burst color (e.g., bright white or a color opposite the base)
+            // Set the burst color (bright white for maximum impact)
             material.uniforms.u_breatheColor.value.set(0xffffff); 
-            // Target mix back to 0.0 to fade the burst
             breatheMixTarget = 0.0;
         }
 
         function updateColorBreathing(delta) {
             breatheTime += delta;
             
-            // 1. Calculate breathing color
             if (breathing) {
-                // Cycle through hue slowly (e.g., 6 seconds per cycle)
+                // Cycle through hue slowly (6 seconds per cycle)
                 const hue = (breatheTime / 6.0) % 1.0;
                 tempColor.setHSL(hue, 1.0, 0.5);
                 
-                // Target full mix for breathing state
                 breatheMixTarget = 1.0;
-
-                // Update the breatheColor uniform
                 material.uniforms.u_breatheColor.value.copy(tempColor);
             }
 
-            // 2. Smoothly transition the mix factor
             material.uniforms.u_breatheMix.value = lerp(
                 material.uniforms.u_breatheMix.value, 
                 breatheMixTarget, 
-                breathing ? 0.05 : 0.03 // Slower fade back to base color
+                breathing ? 0.05 : 0.03 
             );
 
-            // 3. Reset to base color if the mix is low and not breathing
             if (!breathing && material.uniforms.u_breatheMix.value < 0.01) {
                 material.uniforms.u_breatheMix.value = 0.0;
                 material.uniforms.u_breatheColor.value.copy(baseColorCache);
@@ -492,7 +481,6 @@
                 velAttr.setZ(i, v.z);
 
                 birthAttr.setX(i, currentTime);
-
                 colors.setX(i, 1.0);
                 colors.setY(i, 1.0);
                 colors.setZ(i, 1.0);
@@ -508,7 +496,6 @@
             const time = clock.getElapsedTime();
             material.uniforms.u_time.value = time;
 
-            // Apply dampening and subtle continuous rotation in JS
             const velAttr = attributes.a_velocity;
             const damp = particleSettings.dampening;
             const rotationFactor = 0.0005;
@@ -540,7 +527,7 @@
             material.uniforms.u_scale.value = lerp(material.uniforms.u_scale.value, particleSettings.scale, GESTURE_SETTINGS.scaleLerpFactor);
             material.uniforms.u_noiseStrength.value = lerp(material.uniforms.u_noiseStrength.value, particleSettings.noiseStrength, 0.1);
             material.uniforms.u_attractionStrength.value = lerp(material.uniforms.u_attractionStrength.value, particleSettings.attractionStrength, 0.1);
-            material.uniforms.u_baseColor.value.copy(baseColorCache); // Always use cache
+            material.uniforms.u_baseColor.value.copy(baseColorCache);
 
             // Particle Fade for Fireworks
             if (particleSettings.template === 'Fireworks') {
@@ -554,42 +541,24 @@
                     colors.setZ(i, fade);
                 }
                 colors.needsUpdate = true;
-            } else if (material.uniforms.u_breatheMix.value < 0.01) {
-                 // Reset non-fireworks intensity
-                const colors = attributes.color;
-                for (let i = 0; i < currentParticleCount; i++) {
-                    colors.setX(i, 1.0);
-                    colors.setY(i, 1.0);
-                    colors.setZ(i, 1.0);
-                }
-                colors.needsUpdate = true;
             }
         }
 
         // --- MediaPipe Functions ---
-
         async function initCamera() {
+            // ... (Camera initialization logic remains the same)
             videoElement = document.getElementById('video-overlay');
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
                 videoElement.srcObject = stream;
-                await new Promise((resolve) => {
-                    videoElement.onloadedmetadata = resolve;
-                });
+                await new Promise((resolve) => { videoElement.onloadedmetadata = resolve; });
                 videoElement.play();
                 isCameraReady = true;
 
                 hands = new Hands({
                     locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${file}`,
                 });
-
-                hands.setOptions({
-                    maxNumHands: 2,
-                    modelComplexity: 1, 
-                    minDetectionConfidence: 0.5,
-                    minTrackingConfidence: 0.5,
-                });
-
+                hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5, });
                 hands.onResults(onHandsResults);
 
                 new Camera(videoElement, {
@@ -605,10 +574,7 @@
             } catch (error) {
                 console.error("Camera access failed:", error);
                 document.body.insertAdjacentHTML('beforeend',
-                    `<div class="camera-error">
-                        <h4>Camera Access Required for Gesture Control</h4>
-                        <p>Please enable camera access and reload, or use the manual controls.</p>
-                    </div>`
+                    `<div class="camera-error"><h4>Camera Access Required for Gesture Control</h4><p>Please enable camera access and reload, or use the manual controls.</p></div>`
                 );
                 document.getElementById('gesture-toggle').checked = false;
             }
@@ -620,11 +586,9 @@
 
         function calculateTension(hand) {
             if (!hand || hand.length < 21) return 0;
-
             const wrist = hand[0];
             let totalDistance = 0;
             const fingerTips = [4, 8, 12, 16, 20];
-
             fingerTips.forEach(idx => {
                 const tip = hand[idx];
                 const dx = tip.x - wrist.x;
@@ -632,7 +596,6 @@
                 const dz = tip.z - wrist.z;
                 totalDistance += Math.sqrt(dx * dx + dy * dy + dz * dz);
             });
-
             return (totalDistance / fingerTips.length) * 2;
         }
 
@@ -643,40 +606,33 @@
             let currentTension = 1.0;
 
             if (isGestureControl && currentHandData.length > 0) {
-                // 1. Tension (Spread/Expansion)
                 const hand1 = currentHandData[0];
                 currentTension = calculateTension(hand1);
-
                 targetSpread = mapRange(currentTension, GESTURE_SETTINGS.tensionMin, GESTURE_SETTINGS.tensionMax, 0.1, 5.0);
 
-                // --- NEW COLOR BREATHING LOGIC ---
+                // --- COLOR BREATHING LOGIC ---
                 const isFist = currentTension < GESTURE_SETTINGS.tensionHoldThreshold;
                 const wasFist = prevTension < GESTURE_SETTINGS.tensionHoldThreshold;
 
                 if (isFist) {
-                    // Start or maintain breathing state
-                    if (!breathing) breatheTime = 0.0; // Reset time on entry
+                    if (!breathing) breatheTime = 0.0;
                     breathing = true;
                 } else if (wasFist) {
-                    // Fist released -> Trigger burst
                     breathing = false;
                     triggerColorBurst();
                 } else {
-                    // Default open hand state
                     breathing = false;
                     breatheMixTarget = 0.0;
                 }
                 
-                // --- END COLOR BREATHING LOGIC ---
-
-                // Fireworks Snap Detection (uses the same tension mechanics)
+                // Fireworks Snap Detection 
                 const tensionDelta = prevTension - currentTension;
                 if (particleSettings.template === 'Fireworks' && tensionDelta > GESTURE_SETTINGS.fireworksSnapThreshold && clock.getElapsedTime() - lastBurstTime > 0.5) {
                     triggerFireworksBurst();
                 }
                 prevTension = currentTension;
 
-                // 2. Hands Distance (Global Scale)
+                // Hands Distance (Global Scale)
                 if (currentHandData.length === 2) {
                     const hand2 = currentHandData[1];
                     const wrist1 = hand1[0];
@@ -684,7 +640,6 @@
                     const dx = wrist1.x - wrist2.x;
                     const dy = wrist1.y - wrist2.y;
                     const distance = Math.sqrt(dx * dx + dy * dy); 
-
                     targetScale = mapRange(distance, 0.2, 1.0, 0.8, 1.2);
                 }
 
@@ -692,9 +647,8 @@
                 particleSettings.scale = targetScale;
 
             } else {
-                // Manual Fallback
                 particleSettings.spread = parseFloat(document.getElementById('spread-manual').value);
-                prevTension = 1.0; // Set high to prevent false burst on re-enabling
+                prevTension = 1.0;
                 particleSettings.scale = 1.0;
                 breathing = false;
                 breatheMixTarget = 0.0;
@@ -706,7 +660,6 @@
         }
 
         // --- UI and Input Handlers ---
-
         function setupUI() {
             const grid = document.getElementById('template-grid');
             Object.keys(PARTICLE_TEMPLATES).forEach(key => {
@@ -719,28 +672,22 @@
             });
             document.querySelector(`[data-template="${particleSettings.template}"]`).classList.add('active');
 
-            // Sliders and Inputs
             document.getElementById('color-picker').oninput = (e) => {
                 particleSettings.baseColor.set(e.target.value);
-                baseColorCache.copy(particleSettings.baseColor); // Update cache
+                baseColorCache.copy(particleSettings.baseColor); 
             };
-
             document.getElementById('size-slider').oninput = (e) => {
                 particleSettings.size = parseFloat(e.target.value);
             };
-
             document.getElementById('attraction-slider').oninput = (e) => {
                 particleSettings.attractionStrength = parseFloat(e.target.value);
             };
-
             document.getElementById('noise-slider').oninput = (e) => {
                 particleSettings.noiseStrength = parseFloat(e.target.value);
             };
-
             document.getElementById('dampening-slider').oninput = (e) => {
                 particleSettings.dampening = parseFloat(e.target.value);
             };
-
             document.getElementById('gesture-toggle').onchange = (e) => {
                 if (e.target.checked && !isCameraReady) {
                     e.target.checked = false;
@@ -751,27 +698,23 @@
 
             document.getElementById('spread-manual').disabled = document.getElementById('gesture-toggle').checked;
             
-            // Initial color cache setup
             baseColorCache.copy(particleSettings.baseColor);
         }
 
         // --- Main Loop ---
-
         function animate() {
             requestAnimationFrame(animate);
-
             const delta = clock.getDelta();
-
             calculateGestureInput();
             updateParticles(delta);
-
             renderer.render(scene, camera);
         }
 
         // --- Initialization on Load ---
         window.onload = () => {
-            currentParticleCount = 50000;
-            
+            currentParticleCount = DEFAULT_PARTICLE_COUNT;
+            document.getElementById('particle-count-display').textContent = currentParticleCount;
+
             initThree();
             setupUI();
             initCamera(); 
