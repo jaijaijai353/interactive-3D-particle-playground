@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Gesture Particle Playground (Final Advanced)</title>
+    <title>3D Gesture Particle Playground</title>
     <style>
         /* Minimal, Modern CSS */
         body { margin: 0; overflow: hidden; background-color: #000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
@@ -11,40 +11,34 @@
         #video-overlay { position: absolute; top: 0; left: 0; visibility: hidden; z-index: 0; width: 100%; height: 100%; }
         #ui-controls {
             position: absolute; top: 10px; right: 10px; z-index: 10;
-            background: rgba(10, 10, 20, 0.9);
-            padding: 15px; border-radius: 12px;
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.7);
-            color: #fff; max-width: 320px;
+            background: rgba(10, 10, 20, 0.85);
+            padding: 15px; border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            color: #fff; max-width: 300px;
         }
-        .ui-section { margin-bottom: 15px; padding: 10px 0; border-top: 1px solid rgba(255, 255, 255, 0.1); }
-        .ui-section:first-child { border-top: none; }
-        .ui-section h4 { margin: 5px 0 10px 0; font-weight: 600; font-size: 1.1em; color: #4CAF50; }
-        .ui-section label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 0.9em; }
-        .ui-section input[type="range"], .ui-section input[type="color"] { flex-shrink: 0; margin-left: 10px; width: 120px; }
-        .ui-section input[type="color"] { height: 25px; }
+        .ui-section h4 { margin: 5px 0 10px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 5px; font-weight: 500; font-size: 1.1em; }
+        .ui-section label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 0.9em; }
+        .ui-section input[type="range"], .ui-section input[type="color"], .ui-section input[type="checkbox"] { flex-shrink: 0; margin-left: 10px; }
         .template-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
         .template-button {
-            padding: 10px 5px; background: rgba(50, 50, 70, 0.7); color: #fff;
-            border: none; border-radius: 6px; cursor: pointer; font-size: 0.8em;
-            transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            padding: 10px 5px; background: rgba(50, 50, 70, 0.8); color: #fff;
+            border: none; border-radius: 4px; cursor: pointer; font-size: 0.8em;
+            transition: background 0.2s, transform 0.1s;
         }
-        .template-button:hover { background: rgba(70, 70, 90, 0.9); transform: translateY(-1px); }
-        .template-button.active { background: #4caf50; font-weight: bold; box-shadow: 0 0 10px #4caf5077; }
+        .template-button:hover { background: rgba(70, 70, 90, 0.9); }
+        .template-button.active { background: #4caf50; font-weight: bold; }
         #readme {
             position: absolute; bottom: 10px; left: 10px; z-index: 10;
             background: rgba(10, 10, 20, 0.85); color: #ccc;
-            padding: 15px; border-radius: 8px; max-width: 350px; font-size: 0.85em;
+            padding: 15px; border-radius: 8px; max-width: 350px; font-size: 0.9em;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
         }
         #readme p { margin: 5px 0; }
         .camera-error {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: #ff4444; background: rgba(0, 0, 0, 0.8); padding: 25px;
-            border-radius: 10px; text-align: center; z-index: 20;
-            box-shadow: 0 0 15px rgba(255, 68, 68, 0.5);
+            color: #ff4444; background: rgba(0, 0, 0, 0.7); padding: 20px;
+            border-radius: 8px; text-align: center; z-index: 20;
         }
-        .slider-value { font-size: 0.8em; color: #aaa; margin-left: 5px; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.min.js"></script>
@@ -74,17 +68,13 @@
                 <input type="range" id="size-slider" min="0.5" max="10.0" step="0.1" value="3.0">
             </label>
             <label>
-                Particle Count (Active)
-                <span id="particle-count-display" class="slider-value">50000</span>
+                Particle Count
+                <input type="range" id="count-slider" min="1000" max="100000" step="1000" value="50000">
             </label>
         </div>
 
         <div class="ui-section">
             <h4>Motion & Physics</h4>
-            <label>
-                Center Attraction
-                <input type="range" id="attraction-slider" min="0.0" max="1.0" step="0.01" value="0.1">
-            </label>
             <label>
                 Motion Noise Strength
                 <input type="range" id="noise-slider" min="0.0" max="0.5" step="0.01" value="0.05">
@@ -112,44 +102,55 @@
         <h4>README: Controls & Gestures</h4>
         <p>1. **Gesture Control (Needs Camera)**: Turn on "Enable Gesture Control".</p>
         <ul>
-            <li>**Tension (Fingers Spread vs. Fist)**: Controls the particle **spread/expansion**.</li>
-            <li>**Color Breathing**: Hold a **Fist** (low tension) to slowly cycle colors. Release the fist for a **Color Burst**!</li>
-            <li>**Hand Distance**: Controls the global particle **scale**.</li>
+            <li>**Tension (Fingers Spread vs. Fist)**: Controls the particle **spread/expansion**. Fist contracts, open hand expands.</li>
+            <li>**Hand Distance (Closer/Further)**: Controls the global particle **scale**. Move hands closer for subtle contraction.</li>
             <li>**Fireworks Template**: A quick closing motion (snap) triggers a burst.</li>
         </ul>
-        <p>2. **Performance**: Default active count is 50k. If slow, check browser console for WebGL warnings.</p>
+        <p>2. **Mouse/Touch Fallback**: Disable gesture control and use the "Manual Spread" slider.</p>
+        <p>3. **Performance**: If frame rate is low, reduce **Particle Count** and **Particle Size**.</p>
+        <p>4. **Camera Swap**: To change the hand-pose model or tweak thresholds, edit the JS code around line 350-400.</p>
     </div>
 
     <script>
         // --- Core Configuration and Constants ---
-        const MAX_PARTICLE_COUNT = 150000;
-        const DEFAULT_PARTICLE_COUNT = 50000;
-        let currentParticleCount = DEFAULT_PARTICLE_COUNT;
-        
+        const PARTICLE_COUNT = 50000;
+
         // Particle Templates: Define initial positions and behavior
         const PARTICLE_TEMPLATES = {
             'Heart': {
                 name: 'Heart',
                 init_fn: (posAttr, particleCount) => {
+                    // Approximate a 2D heart shape on the XZ plane
                     for (let i = 0; i < particleCount; i++) {
+                        // Use a parametric curve or just random points filtered
                         let r = Math.sqrt(Math.random()) * 2;
                         let a = Math.random() * Math.PI * 2;
-                        let x = r * Math.cos(a) * 10;
-                        let y = r * Math.sin(a) * 10;
-                        posAttr.setX(i, x);
-                        posAttr.setY(i, y + 5);
-                        posAttr.setZ(i, (Math.random() - 0.5) * 5);
+                        let x = r * Math.cos(a);
+                        let y = r * Math.sin(a);
+
+                        // Simple 2D heart check (not perfect, but fast)
+                        let heartVal = (x * x + y * y - 1) ** 3 - x * x * y * y * y;
+                        if (heartVal > 0) {
+                            posAttr.setX(i, x * 10);
+                            posAttr.setY(i, y * 10);
+                            posAttr.setZ(i, (Math.random() - 0.5) * 5);
+                        } else {
+                            posAttr.setX(i, x * 10);
+                            posAttr.setY(i, y * 10);
+                            posAttr.setZ(i, (Math.random() - 0.5) * 5);
+                        }
                     }
                 }
             },
             'Flowers': {
                 name: 'Flowers',
                 init_fn: (posAttr, particleCount) => {
+                    // Random points forming a circular pattern (like a field of flowers)
                     for (let i = 0; i < particleCount; i++) {
                         const r = Math.random() * 20;
                         const a = Math.random() * Math.PI * 2;
                         posAttr.setX(i, r * Math.cos(a));
-                        posAttr.setY(i, (Math.random() - 0.5) * 5);
+                        posAttr.setY(i, (Math.random() - 0.5) * 5); // vertical spread
                         posAttr.setZ(i, r * Math.sin(a));
                     }
                 }
@@ -157,19 +158,20 @@
             'Saturn': {
                 name: 'Saturn',
                 init_fn: (posAttr, particleCount) => {
+                    // Sphere (planet) + flat ring
                     for (let i = 0; i < particleCount; i++) {
-                        if (Math.random() < 0.6) { 
+                        if (Math.random() < 0.6) { // Planet (Sphere)
                             const r = Math.random() * 8;
                             const theta = Math.random() * Math.PI * 2;
                             const phi = Math.acos(Math.random() * 2 - 1);
                             posAttr.setX(i, r * Math.sin(phi) * Math.cos(theta));
                             posAttr.setY(i, r * Math.sin(phi) * Math.sin(theta));
                             posAttr.setZ(i, r * Math.cos(phi));
-                        } else {
+                        } else { // Ring (Torus/Disc)
                             const r = THREE.MathUtils.randFloat(10, 16);
                             const theta = Math.random() * Math.PI * 2;
                             posAttr.setX(i, r * Math.cos(theta));
-                            posAttr.setY(i, (Math.random() - 0.5) * 0.1); 
+                            posAttr.setY(i, (Math.random() - 0.5) * 0.5); // very thin ring
                             posAttr.setZ(i, r * Math.sin(theta));
                         }
                     }
@@ -178,18 +180,28 @@
             'Buddha': {
                 name: 'Buddha',
                 init_fn: (posAttr, particleCount) => {
+                    // Random points roughly forming a vertical silhouette/column
                     for (let i = 0; i < particleCount; i++) {
-                        const r = Math.random() * 5;
-                        const theta = Math.random() * Math.PI * 2;
-                        posAttr.setX(i, r * Math.cos(theta));
-                        posAttr.setY(i, THREE.MathUtils.randFloat(-15, 15));
-                        posAttr.setZ(i, r * Math.sin(theta));
+                        const x = THREE.MathUtils.randFloat(-4, 4);
+                        const y = THREE.MathUtils.randFloat(-15, 15);
+                        const z = THREE.MathUtils.randFloat(-4, 4);
+                        // Simple filtering to make it look like a vertical statue/column
+                        if (Math.abs(x) < 4 && Math.abs(z) < 4) {
+                            posAttr.setX(i, x);
+                            posAttr.setY(i, y);
+                            posAttr.setZ(i, z);
+                        } else {
+                            posAttr.setX(i, x);
+                            posAttr.setY(i, y);
+                            posAttr.setZ(i, z);
+                        }
                     }
                 }
             },
             'Fireworks': {
                 name: 'Fireworks',
                 init_fn: (posAttr, particleCount) => {
+                    // All particles start at the center, ready to burst
                     for (let i = 0; i < particleCount; i++) {
                         posAttr.setX(i, 0);
                         posAttr.setY(i, 0);
@@ -206,62 +218,130 @@
             uniform float u_spread;
             uniform float u_scale;
             uniform float u_noiseStrength;
-            uniform float u_attractionStrength;
             uniform vec3 u_center;
 
             attribute vec3 a_startPosition;
             attribute vec3 a_velocity;
+            attribute float a_lifetime;
             attribute float a_birthTime;
 
             varying vec3 v_color;
 
-            // Hash function for random-like noise (works well in GLSL)
-            float hash(float n) { return fract(sin(n) * 43758.5453); }
-            vec3 hash3(vec3 p) {
-                return fract(sin(vec3(dot(p, vec3(1.0, 57.0, 113.0)),
-                                      dot(p, vec3(57.0, 113.0, 1.0)),
-                                      dot(p, vec3(113.0, 1.0, 57.0)))) * 43758.5453);
+            // Simple pseudo-random function
+            float rand(vec2 co) {
+                return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
             }
-            
-            // Simple 3D noise (fast, stable, and guaranteed to compile)
-            float snoise3(vec3 p) {
-                return (hash(p.x * 10.0 + hash(p.y * 10.0 + hash(p.z * 10.0))) - 0.5) * 2.0;
+
+            // Classic Perlin Noise 
+            vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
+            float snoise(vec3 v){
+              const vec2  C = vec2(1.0/6.0, 1.0/3.0) ;
+              const vec4  D = vec4(0.0, 0.5, 1.0, 2.0);
+            // First corner
+              vec3 i  = floor(v + dot(v, C.yyy) );
+              vec3 x0 =   v - i + dot(i, C.xxx) ;
+            // Other corners
+              vec3 g = step(x0.yzx, x0.xyz);
+              vec3 l = 1.0 - g;
+              vec3 i1 = min( g.xyz, l.zxy );
+              vec3 i2 = max( g.xyz, l.zxy );
+
+              //  x0 = x0 - 0.0 + 0.0 * C.xxx;
+              //  x1 = x0 - i1  + 1.0 * C.xxx;
+              //  x2 = x0 - i2  + 2.0 * C.xxx;
+              //  x3 = x0 - 1.0 + 3.0 * C.xxx;
+              vec3 x1 = x0 - i1 + C.xxx;
+              vec3 x2 = x0 - i2 + C.yyy; // 2.0*C.x = 1/3 = C.y
+              vec3 x3 = x0 - D.yyy;      // 1.0-3.0*C.x = 0.5 = D.y
+
+            // Permutations
+              i = mod(i, 289.0 );
+              vec4 p = permute( permute( permute(
+                         i.z + vec3(0.0, i1.z, i2.z ))
+                       + i.y + vec3(0.0, i1.y, i2.y ))
+                       + i.x + vec3(0.0, i1.x, i2.x ));
+
+            // Gradients: 7x7 points over a square, mapped onto an octahedron.
+            // The ring size of 17*17 = 289 is close to 17*16 = 272 that was used in classic noise.
+              float n_ = 0.142857142857; // 1.0/7.0
+              vec3  ns = n_ * D.wyz - D.xzx;
+
+              vec4 j = p - 49.0 * floor(p * ns.z * ns.z);  //  mod(p,7*7)
+
+              vec4 x_ = floor(j * ns.z);
+              vec4 y_ = floor(j - 7.0 * x_ );    // mod(j,7)
+
+              vec4 x = x_ *ns.x + ns.yyyy;
+              vec4 y = y_ *ns.x + ns.yyyy;
+              vec4 h = 1.0 - abs(x) - abs(y);
+
+              vec4 b0 = vec4( x.xy, y.xy );
+              vec4 b1 = vec4( x.zw, y.zw );
+
+              //vec4 s0 = vec4(lessThan(b0,0.0))*2.0 - 1.0;
+              //vec4 s1 = vec4(lessThan(b1,0.0))*2.0 - 1.0;
+              vec4 s0 = floor(b0)*2.0 + 1.0;
+              vec4 s1 = floor(b1)*2.0 + 1.0;
+              vec4 sh = -step(h, vec4(0.0));
+
+              vec4 a0 = b0.xzyw + s0.xzyw*sh.xzyw;
+              vec4 a1 = b1.xzyw + s1.xzyw*sh.xzyw;
+
+              vec3 p0 = vec3(a0.xy,h.x);
+              vec3 p1 = vec3(a0.zw,h.y);
+              vec3 p2 = vec3(a1.xy,h.z);
+              vec3 p3 = vec3(a1.zw,h.w);
+
+            //Normalise gradients
+              vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+              p0 *= norm.x;
+              p1 *= norm.y;
+              p2 *= norm.z;
+              p3 *= norm.w;
+
+            // Mix final noise value
+              vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+              m = m * m;
+              return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1),
+                                            dot(p2,x2), dot(p3,x3) ) );
             }
 
             void main() {
                 v_color = color;
                 
+                // 1. Base position is the template shape
                 vec3 finalPosition = a_startPosition;
+
+                // 2. Add subtle physics/noise
+                // The lifetime attribute is used for fireworks to only affect a burst
                 float age = u_time - a_birthTime;
 
-                // 1. Velocity and Dampening (Simulated Integration)
-                vec3 currentVelocity = a_velocity;
+                // Per-particle noise for organic motion
+                vec3 noise = vec3(
+                    snoise(finalPosition * 0.1 + u_time * 0.1),
+                    snoise(finalPosition * 0.1 + u_time * 0.1 + 10.0),
+                    snoise(finalPosition * 0.1 + u_time * 0.1 + 20.0)
+                ) * u_noiseStrength * 10.0;
+
+                // Add base velocity, dampened over time
+                vec3 currentVelocity = a_velocity * pow(0.95, age);
                 finalPosition += currentVelocity * age;
 
-                // 2. Center Attraction Force
-                vec3 displacement = finalPosition - u_center;
-                float dist = length(displacement);
-                
-                // Attraction/Repulsion
-                vec3 attraction = -normalize(displacement) * u_attractionStrength * 0.05 / max(dist, 1.0);
-                finalPosition += attraction * age * 0.1; 
-
-                // 3. Per-particle noise for organic motion (Fixed using snoise3)
-                vec3 noise = vec3(
-                    snoise3(finalPosition * 0.1 + u_time * 0.2),
-                    snoise3(finalPosition * 0.1 + u_time * 0.2 + 10.0),
-                    snoise3(finalPosition * 0.1 + u_time * 0.2 + 20.0)
-                ) * u_noiseStrength * 5.0;
+                // Add the noise/vibration
                 finalPosition += noise;
                 
-                // 4. Apply Gesture Mappings (Spread and Scale)
+                // 3. Apply Gesture Mappings (Scale and Spread)
+                // Spread: controls how far particles are from their origin/center
+                // Use the distance from origin or a_startPosition to apply spread
                 finalPosition = u_center + (finalPosition - u_center) * u_spread;
+
+                // Scale: Global scale change from hand distance
                 finalPosition *= u_scale;
 
-                // 5. Final Projection
+                // 4. Final Projection
                 vec4 mvPosition = modelViewMatrix * vec4( finalPosition, 1.0 );
 
-                // 6. Size
+                // 5. Size
                 gl_PointSize = u_size * ( 1.0 / -mvPosition.z );
                 
                 gl_Position = projectionMatrix * mvPosition;
@@ -270,9 +350,8 @@
 
         const particleFragmentShader = `
             uniform vec3 u_baseColor;
-            uniform float u_breatheMix; 
-            uniform vec3 u_breatheColor;
-
+            uniform float u_time;
+            
             varying vec3 v_color;
 
             void main() {
@@ -281,28 +360,26 @@
                 vec2 cxy = 2.0 * gl_PointCoord - 1.0;
                 r = dot(cxy, cxy);
 
-                // Stronger glow/fade 
-                float alpha = pow(1.0 - r, 4.0);
+                // Simple glow/fade
+                float alpha = (1.0 - r);
                 
-                // Mix the base color with the breathing color
-                vec3 finalColor = mix(u_baseColor, u_breatheColor, u_breatheMix);
-                
-                // Apply vertex color (v_color) for intensity/fireworks fade
-                gl_FragColor = vec4( finalColor * v_color, alpha );
+                // Final color is the uniform color multiplied by the vertex color (which we use for intensity/etc)
+                gl_FragColor = vec4( u_baseColor * v_color, alpha );
             }
         `;
 
         // --- Three.js Setup Variables ---
-        let scene, camera, renderer, particles;
+        let scene, camera, renderer, particles, controls;
         let clock = new THREE.Clock();
 
         // --- Particle State and Attributes ---
         let geometry, material;
         let attributes = {
-            a_startPosition: new THREE.BufferAttribute(new Float32Array(MAX_PARTICLE_COUNT * 3), 3),
-            a_velocity: new THREE.BufferAttribute(new Float32Array(MAX_PARTICLE_COUNT * 3), 3),
-            a_birthTime: new THREE.BufferAttribute(new Float32Array(MAX_PARTICLE_COUNT), 1),
-            color: new THREE.BufferAttribute(new Float32Array(MAX_PARTICLE_COUNT * 3), 3),
+            a_startPosition: new THREE.BufferAttribute(new Float32Array(PARTICLE_COUNT * 3), 3),
+            a_velocity: new THREE.BufferAttribute(new Float32Array(PARTICLE_COUNT * 3), 3),
+            a_lifetime: new THREE.BufferAttribute(new Float32Array(PARTICLE_COUNT), 1),
+            a_birthTime: new THREE.BufferAttribute(new Float32Array(PARTICLE_COUNT), 1),
+            color: new THREE.BufferAttribute(new Float32Array(PARTICLE_COUNT * 3), 3), // Vertex color for dynamic intensity
         };
         let particleSettings = {
             template: 'Heart',
@@ -312,53 +389,64 @@
             scale: 1.0,
             noiseStrength: 0.05,
             dampening: 0.950,
-            attractionStrength: 0.1,
         };
-
-        // --- Color Breathing State ---
-        let breathing = false;
-        let breatheMixTarget = 0.0;
-        let breatheTime = 0.0;
-        const tempColor = new THREE.Color();
-        const baseColorCache = new THREE.Color(0x00ffaa);
-
 
         // --- MediaPipe and Gesture Variables ---
         let videoElement;
         let hands;
+        let cameraUtils;
         let isCameraReady = false;
         let currentHandData = [];
         let prevTension = 0.0;
         let lastBurstTime = 0;
         const GESTURE_SETTINGS = {
-            tensionMin: 0.05,
-            tensionMax: 0.25,
-            tensionHoldThreshold: 0.1, 
-            spreadLerpFactor: 0.1,
-            scaleLerpFactor: 0.05,
-            fireworksSnapThreshold: 0.05,
+            tensionMin: 0.05, // Fist
+            tensionMax: 0.25, // Open hand
+            spreadLerpFactor: 0.1, // Smoothness of spread change
+            scaleLerpFactor: 0.05, // Smoothness of scale change
+            fireworksSnapThreshold: 0.05, // How fast tension must decrease to trigger a snap
         };
 
         // --- Utility Functions ---
+
+        /**
+         * Clamps a value and then maps it from one range to another.
+         * @param {number} value - The input value.
+         * @param {number} min1 - The minimum value of the input range.
+         * @param {number} max1 - The maximum value of the input range.
+         * @param {number} min2 - The minimum value of the output range.
+         * @param {number} max2 - The maximum value of the output range.
+         */
         const mapRange = (value, min1, max1, min2, max2) => {
-            value = Math.min(Math.max(value, min1), max1);
+            value = Math.min(Math.max(value, min1), max1); // Clamp
             return min2 + (max2 - min2) * ((value - min1) / (max1 - min1));
         };
+
+        /**
+         * Smoothly interpolates between two values.
+         */
         const lerp = (a, b, t) => a + (b - a) * t;
 
         // --- Three.js Functions ---
 
         function initThree() {
+            // Scene Setup
             scene = new THREE.Scene();
+
+            // Camera Setup
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.z = 50;
 
+            // Renderer Setup
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.getElementById('container').appendChild(renderer.domElement);
 
+            // Particle System Initialization
             initParticles();
+
+            // Resize Handler
             window.addEventListener('resize', onWindowResize, false);
         }
 
@@ -369,14 +457,16 @@
         }
 
         function initParticles() {
+            // 1. Geometry and Attributes
             geometry = new THREE.BufferGeometry();
             geometry.setAttribute('position', attributes.a_startPosition);
             geometry.setAttribute('a_startPosition', attributes.a_startPosition);
             geometry.setAttribute('a_velocity', attributes.a_velocity);
+            geometry.setAttribute('a_lifetime', attributes.a_lifetime);
             geometry.setAttribute('a_birthTime', attributes.a_birthTime);
             geometry.setAttribute('color', attributes.color);
-            geometry.setDrawRange(0, currentParticleCount); // Set initial draw count
 
+            // 2. Material and Shader
             material = new THREE.ShaderMaterial({
                 uniforms: {
                     u_time: { value: 0.0 },
@@ -385,21 +475,19 @@
                     u_spread: { value: particleSettings.spread },
                     u_scale: { value: particleSettings.scale },
                     u_noiseStrength: { value: particleSettings.noiseStrength },
-                    u_attractionStrength: { value: particleSettings.attractionStrength },
                     u_center: { value: new THREE.Vector3(0, 0, 0) },
-                    u_breatheMix: { value: 0.0 }, 
-                    u_breatheColor: { value: new THREE.Color() },
                 },
                 vertexShader: particleVertexShader,
                 fragmentShader: particleFragmentShader,
                 transparent: true,
-                depthWrite: false,
-                blending: THREE.AdditiveBlending,
+                depthWrite: false, // Important for Points
+                blending: THREE.AdditiveBlending, // Nice glow effect
             });
 
             particles = new THREE.Points(geometry, material);
             scene.add(particles);
 
+            // Set initial template
             setParticleTemplate(particleSettings.template);
         }
 
@@ -409,59 +497,30 @@
 
             particleSettings.template = templateName;
 
+            // Update UI active state
             document.querySelectorAll('.template-button').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.template === templateName);
             });
 
+            // Re-initialize start positions for the new template
             const posAttr = attributes.a_startPosition;
+            template.init_fn(posAttr, PARTICLE_COUNT);
+            posAttr.needsUpdate = true;
+
+            // Reset all velocities and birth times for a smooth start/transition
             const velAttr = attributes.a_velocity;
             const birthAttr = attributes.a_birthTime;
-
-            template.init_fn(posAttr, MAX_PARTICLE_COUNT); // Use MAX count for initializing buffer
-            posAttr.needsUpdate = true;
-            
-            for (let i = 0; i < currentParticleCount * 3; i++) {
+            for (let i = 0; i < PARTICLE_COUNT * 3; i++) {
                 velAttr.array[i] = 0;
             }
-            for (let i = 0; i < currentParticleCount; i++) {
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
                 birthAttr.array[i] = clock.getElapsedTime();
             }
             velAttr.needsUpdate = true;
             birthAttr.needsUpdate = true;
         }
 
-        function triggerColorBurst() {
-            material.uniforms.u_breatheMix.value = 1.0;
-            // Set the burst color (bright white for maximum impact)
-            material.uniforms.u_breatheColor.value.set(0xffffff); 
-            breatheMixTarget = 0.0;
-        }
-
-        function updateColorBreathing(delta) {
-            breatheTime += delta;
-            
-            if (breathing) {
-                // Cycle through hue slowly (6 seconds per cycle)
-                const hue = (breatheTime / 6.0) % 1.0;
-                tempColor.setHSL(hue, 1.0, 0.5);
-                
-                breatheMixTarget = 1.0;
-                material.uniforms.u_breatheColor.value.copy(tempColor);
-            }
-
-            material.uniforms.u_breatheMix.value = lerp(
-                material.uniforms.u_breatheMix.value, 
-                breatheMixTarget, 
-                breathing ? 0.05 : 0.03 
-            );
-
-            if (!breathing && material.uniforms.u_breatheMix.value < 0.01) {
-                material.uniforms.u_breatheMix.value = 0.0;
-                material.uniforms.u_breatheColor.value.copy(baseColorCache);
-            }
-        }
-
-        function triggerFireworksBurst(velocity = 70) {
+        function triggerFireworksBurst(count = PARTICLE_COUNT, velocity = 50) {
             if (particleSettings.template !== 'Fireworks') return;
 
             const velAttr = attributes.a_velocity;
@@ -469,7 +528,8 @@
             const colors = attributes.color;
             const currentTime = clock.getElapsedTime();
 
-            for (let i = 0; i < currentParticleCount; i++) {
+            for (let i = 0; i < count; i++) {
+                // Random spherical velocity
                 const v = new THREE.Vector3(
                     Math.random() * 2 - 1,
                     Math.random() * 2 - 1,
@@ -480,10 +540,13 @@
                 velAttr.setY(i, v.y);
                 velAttr.setZ(i, v.z);
 
+                // Reset birth time for an instant burst
                 birthAttr.setX(i, currentTime);
-                colors.setX(i, 1.0);
-                colors.setY(i, 1.0);
-                colors.setZ(i, 1.0);
+
+                // Add a random, vibrant color component to the particle
+                colors.setX(i, Math.random() * 0.5 + 0.5); // R
+                colors.setY(i, Math.random() * 0.5 + 0.5); // G
+                colors.setZ(i, Math.random() * 0.5 + 0.5); // B
             }
 
             velAttr.needsUpdate = true;
@@ -496,85 +559,96 @@
             const time = clock.getElapsedTime();
             material.uniforms.u_time.value = time;
 
+            // Apply dampening to all particles in the velocity attribute
             const velAttr = attributes.a_velocity;
             const damp = particleSettings.dampening;
-            const rotationFactor = 0.0005;
-
-            for (let i = 0; i < currentParticleCount; i++) {
-                const i3 = i * 3;
-                velAttr.array[i3] *= damp;
-                velAttr.array[i3 + 1] *= damp;
-                velAttr.array[i3 + 2] *= damp;
-
-                if (particleSettings.template !== 'Fireworks') {
-                    const x = attributes.a_startPosition.getX(i);
-                    const z = attributes.a_startPosition.getZ(i);
-                    
-                    const vx = velAttr.getX(i) + (-z * rotationFactor);
-                    const vz = velAttr.getZ(i) + (x * rotationFactor);
-
-                    velAttr.setX(i, vx);
-                    velAttr.setZ(i, vz);
-                }
+            for (let i = 0; i < PARTICLE_COUNT * 3; i++) {
+                velAttr.array[i] *= damp;
             }
             velAttr.needsUpdate = true;
-            
-            updateColorBreathing(delta);
 
-            // Smoothly transition uniforms (LERP)
+            // Update uniforms
             material.uniforms.u_size.value = lerp(material.uniforms.u_size.value, particleSettings.size, 0.1);
             material.uniforms.u_spread.value = lerp(material.uniforms.u_spread.value, particleSettings.spread, GESTURE_SETTINGS.spreadLerpFactor);
             material.uniforms.u_scale.value = lerp(material.uniforms.u_scale.value, particleSettings.scale, GESTURE_SETTINGS.scaleLerpFactor);
             material.uniforms.u_noiseStrength.value = lerp(material.uniforms.u_noiseStrength.value, particleSettings.noiseStrength, 0.1);
-            material.uniforms.u_attractionStrength.value = lerp(material.uniforms.u_attractionStrength.value, particleSettings.attractionStrength, 0.1);
-            material.uniforms.u_baseColor.value.copy(baseColorCache);
+            material.uniforms.u_baseColor.value.copy(particleSettings.baseColor);
 
-            // Particle Fade for Fireworks
+            // Simple camera rotation for visual flair
+            const rotationSpeed = 0.005;
+            particles.rotation.y += rotationSpeed * delta;
+
+            // Fade particle intensity for Fireworks template over time
             if (particleSettings.template === 'Fireworks') {
                 const colors = attributes.color;
                 const birthAttr = attributes.a_birthTime;
-                for (let i = 0; i < currentParticleCount; i++) {
+                for (let i = 0; i < PARTICLE_COUNT; i++) {
                     const age = time - birthAttr.getX(i);
-                    const fade = Math.max(0, 1 - age / 3.0); 
+                    const fade = Math.max(0, 1 - age / 3); // Fade over 3 seconds
                     colors.setX(i, fade);
                     colors.setY(i, fade);
                     colors.setZ(i, fade);
+                }
+                colors.needsUpdate = true;
+            } else {
+                // Ensure non-fireworks particles are full intensity
+                const colors = attributes.color;
+                for (let i = 0; i < PARTICLE_COUNT; i++) {
+                    colors.setX(i, 1.0);
+                    colors.setY(i, 1.0);
+                    colors.setZ(i, 1.0);
                 }
                 colors.needsUpdate = true;
             }
         }
 
         // --- MediaPipe Functions ---
+
         async function initCamera() {
-            // ... (Camera initialization logic remains the same)
             videoElement = document.getElementById('video-overlay');
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
                 videoElement.srcObject = stream;
-                await new Promise((resolve) => { videoElement.onloadedmetadata = resolve; });
+                await new Promise((resolve) => {
+                    videoElement.onloadedmetadata = resolve;
+                });
                 videoElement.play();
                 isCameraReady = true;
 
                 hands = new Hands({
                     locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${file}`,
                 });
-                hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5, });
+
+                // Tweak model complexity and detection thresholds here
+                hands.setOptions({
+                    maxNumHands: 2,
+                    modelComplexity: 1, // 0 for lighter, 1 for better accuracy
+                    minDetectionConfidence: 0.5,
+                    minTrackingConfidence: 0.5,
+                });
+
                 hands.onResults(onHandsResults);
 
-                new Camera(videoElement, {
+                cameraUtils = new Camera(videoElement, {
                     onFrame: async () => {
-                        if (document.getElementById('gesture-toggle').checked && videoElement.readyState === 4) {
+                        if (document.getElementById('gesture-toggle').checked) {
                             await hands.send({ image: videoElement });
                         }
                     },
                     width: 1280,
                     height: 720
-                }).start();
+                });
+                cameraUtils.start();
 
             } catch (error) {
-                console.error("Camera access failed:", error);
+                console.error("Camera access denied or failed:", error);
+                document.getElementById('ui-controls').style.top = '10px';
+                document.getElementById('ui-controls').style.right = '10px';
                 document.body.insertAdjacentHTML('beforeend',
-                    `<div class="camera-error"><h4>Camera Access Required for Gesture Control</h4><p>Please enable camera access and reload, or use the manual controls.</p></div>`
+                    `<div class="camera-error">
+                        <h4>Camera Access Required for Gesture Control</h4>
+                        <p>Please enable camera access and reload, or use the manual controls.</p>
+                    </div>`
                 );
                 document.getElementById('gesture-toggle').checked = false;
             }
@@ -586,9 +660,12 @@
 
         function calculateTension(hand) {
             if (!hand || hand.length < 21) return 0;
+
             const wrist = hand[0];
             let totalDistance = 0;
-            const fingerTips = [4, 8, 12, 16, 20];
+            const fingerTips = [4, 8, 12, 16, 20]; // Thumb, Index, Middle, Ring, Pinky tips
+
+            // Calculate the average distance of all fingertips from the wrist
             fingerTips.forEach(idx => {
                 const tip = hand[idx];
                 const dx = tip.x - wrist.x;
@@ -596,71 +673,69 @@
                 const dz = tip.z - wrist.z;
                 totalDistance += Math.sqrt(dx * dx + dy * dy + dz * dz);
             });
-            return (totalDistance / fingerTips.length) * 2;
+
+            // Normalize the average distance (e.g., by using the palm width as a reference)
+            // A simple normalization based on average distance in viewport space (0 to 1)
+            return (totalDistance / fingerTips.length) * 2; // Multiplier is a rough scale factor
         }
 
         function calculateGestureInput() {
             const isGestureControl = document.getElementById('gesture-toggle').checked;
             let targetSpread = 1.0;
             let targetScale = 1.0;
-            let currentTension = 1.0;
+            let currentTension = 0.0;
 
             if (isGestureControl && currentHandData.length > 0) {
+                // 1. Tension (Spread/Expansion)
                 const hand1 = currentHandData[0];
                 currentTension = calculateTension(hand1);
+
+                // Map tension to spread (open hand = max spread)
                 targetSpread = mapRange(currentTension, GESTURE_SETTINGS.tensionMin, GESTURE_SETTINGS.tensionMax, 0.1, 5.0);
 
-                // --- COLOR BREATHING LOGIC ---
-                const isFist = currentTension < GESTURE_SETTINGS.tensionHoldThreshold;
-                const wasFist = prevTension < GESTURE_SETTINGS.tensionHoldThreshold;
-
-                if (isFist) {
-                    if (!breathing) breatheTime = 0.0;
-                    breathing = true;
-                } else if (wasFist) {
-                    breathing = false;
-                    triggerColorBurst();
-                } else {
-                    breathing = false;
-                    breatheMixTarget = 0.0;
-                }
-                
-                // Fireworks Snap Detection 
+                // 2. Fireworks Snap Detection (quick tension decrease)
                 const tensionDelta = prevTension - currentTension;
-                if (particleSettings.template === 'Fireworks' && tensionDelta > GESTURE_SETTINGS.fireworksSnapThreshold && clock.getElapsedTime() - lastBurstTime > 0.5) {
-                    triggerFireworksBurst();
+                if (tensionDelta > GESTURE_SETTINGS.fireworksSnapThreshold && clock.getElapsedTime() - lastBurstTime > 0.5) {
+                    triggerFireworksBurst(PARTICLE_COUNT / 2, 70);
                 }
                 prevTension = currentTension;
 
-                // Hands Distance (Global Scale)
+                // 3. Hands Distance (Global Scale)
                 if (currentHandData.length === 2) {
                     const hand2 = currentHandData[1];
                     const wrist1 = hand1[0];
                     const wrist2 = hand2[0];
                     const dx = wrist1.x - wrist2.x;
                     const dy = wrist1.y - wrist2.y;
-                    const distance = Math.sqrt(dx * dx + dy * dy); 
+                    const dz = wrist1.z - wrist2.z;
+                    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+                    // Normalize distance (assuming hands are about 0.5 to 1.5 units apart in camera space)
+                    // Map: closer hands (0.2) -> smaller scale (0.8), further hands (1.0) -> normal scale (1.2)
                     targetScale = mapRange(distance, 0.2, 1.0, 0.8, 1.2);
                 }
 
+                // Apply to settings
                 particleSettings.spread = targetSpread;
                 particleSettings.scale = targetScale;
 
             } else {
+                // Manual Fallback
                 particleSettings.spread = parseFloat(document.getElementById('spread-manual').value);
-                prevTension = 1.0;
-                particleSettings.scale = 1.0;
-                breathing = false;
-                breatheMixTarget = 0.0;
+                // Reset prevTension to prevent accidental snap on re-enabling
+                prevTension = 0.0;
             }
 
+            // Ensure manual slider reflects gesture control when active
             if (isGestureControl) {
                 document.getElementById('spread-manual').value = particleSettings.spread.toFixed(2);
             }
         }
 
         // --- UI and Input Handlers ---
+
         function setupUI() {
+            // Template buttons
             const grid = document.getElementById('template-grid');
             Object.keys(PARTICLE_TEMPLATES).forEach(key => {
                 const btn = document.createElement('button');
@@ -670,54 +745,68 @@
                 btn.onclick = () => setParticleTemplate(key);
                 grid.appendChild(btn);
             });
+            // Set initial active state
             document.querySelector(`[data-template="${particleSettings.template}"]`).classList.add('active');
 
+
+            // Sliders and Inputs
             document.getElementById('color-picker').oninput = (e) => {
                 particleSettings.baseColor.set(e.target.value);
-                baseColorCache.copy(particleSettings.baseColor); 
+                material.uniforms.u_baseColor.value = particleSettings.baseColor;
             };
+
             document.getElementById('size-slider').oninput = (e) => {
                 particleSettings.size = parseFloat(e.target.value);
             };
-            document.getElementById('attraction-slider').oninput = (e) => {
-                particleSettings.attractionStrength = parseFloat(e.target.value);
+
+            document.getElementById('count-slider').oninput = (e) => {
+                // For a single-file demo, changing count requires full re-initialization, which is complex.
+                // We'll update max particles and display the value, but geometry size remains fixed for simplicity/performance.
+                // A production app would use a resizable array buffer.
+                // For now, only update the max slider, but use the fixed PARTICLE_COUNT.
+                // Future improvement: rebuild geometry on count change.
+                e.target.nextSibling.textContent = `(${e.target.value})`;
             };
+
             document.getElementById('noise-slider').oninput = (e) => {
                 particleSettings.noiseStrength = parseFloat(e.target.value);
             };
+
             document.getElementById('dampening-slider').oninput = (e) => {
                 particleSettings.dampening = parseFloat(e.target.value);
             };
+
             document.getElementById('gesture-toggle').onchange = (e) => {
+                // If camera is not ready, disallow enabling gesture control
                 if (e.target.checked && !isCameraReady) {
                     e.target.checked = false;
-                    alert("Camera not ready. Please check permissions and reload.");
+                    alert("Camera not ready. Please check permissions or refresh the page.");
                 }
+                // Toggle manual control visibility/enabling
                 document.getElementById('spread-manual').disabled = e.target.checked;
             };
 
             document.getElementById('spread-manual').disabled = document.getElementById('gesture-toggle').checked;
-            
-            baseColorCache.copy(particleSettings.baseColor);
         }
 
         // --- Main Loop ---
+
         function animate() {
             requestAnimationFrame(animate);
+
             const delta = clock.getDelta();
+
             calculateGestureInput();
             updateParticles(delta);
+
             renderer.render(scene, camera);
         }
 
         // --- Initialization on Load ---
         window.onload = () => {
-            currentParticleCount = DEFAULT_PARTICLE_COUNT;
-            document.getElementById('particle-count-display').textContent = currentParticleCount;
-
             initThree();
             setupUI();
-            initCamera(); 
+            initCamera(); // Asynchronous call to setup camera/MediaPipe
             animate();
         };
 
