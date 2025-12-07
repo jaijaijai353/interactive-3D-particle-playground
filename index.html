@@ -2,15 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Gesture Starfield – Reel Style</title>
+  <title>Gesture Starfield – Reel Style (No Bloom)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- Three.js r149 (pre-r150, examples attach to global THREE) -->
-  <script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
-  <!-- Post-processing examples for r149 -->
-  <script src="https://unpkg.com/three@0.149.0/examples/js/postprocessing/EffectComposer.js"></script>
-  <script src="https://unpkg.com/three@0.149.0/examples/js/postprocessing/RenderPass.js"></script>
-  <script src="https://unpkg.com/three@0.149.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+  <!-- Any recent Three.js build works, we only use core THREE.* APIs -->
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
 
   <!-- MediaPipe Hands (hand-pose model). Can be swapped to another model. -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
@@ -19,14 +15,10 @@
     :root {
       --bg: #000000;
       --accent: #f5f1e8;
-      --accent-soft: rgba(245, 241, 232, 0.15);
-      --border-subtle: rgba(255, 255, 255, 0.08);
       --text-main: #f7f7ff;
       --text-muted: #9da2c0;
-      --radius-lg: 16px;
       --shadow-soft: 0 18px 40px rgba(0, 0, 0, 0.8);
       --transition-fast: 0.18s ease-out;
-      --danger: #ff5b6b;
     }
 
     * {
@@ -60,7 +52,6 @@
       display: block;
     }
 
-    /* Hidden webcam video (used only for hand detection) */
     #input-video {
       position: fixed;
       inset: auto auto 10px 10px;
@@ -69,7 +60,6 @@
       pointer-events: none;
     }
 
-    /* Minimal UI overlay */
     #ui-overlay {
       position: absolute;
       inset: 0;
@@ -86,7 +76,7 @@
       pointer-events: auto;
       padding: 6px 10px;
       border-radius: 999px;
-      background: rgba(0, 0, 0, 0.6);
+      background: rgba(0, 0, 0, 0.7);
       border: 1px solid rgba(255, 255, 255, 0.12);
       backdrop-filter: blur(18px);
       box-shadow: var(--shadow-soft);
@@ -113,7 +103,7 @@
       gap: 10px;
       padding: 8px 12px;
       border-radius: 999px;
-      background: rgba(0, 0, 0, 0.65);
+      background: rgba(0, 0, 0, 0.7);
       border: 1px solid rgba(255, 255, 255, 0.1);
       backdrop-filter: blur(18px);
       box-shadow: var(--shadow-soft);
@@ -267,10 +257,8 @@
 </div>
 
 <script>
-  // ==========================================================
-  // CORE THREE + BLOOM SETUP
-  // ==========================================================
-  let scene, camera, renderer, composer, renderPass, bloomPass;
+  // ========= CORE THREE SETUP =========
+  let scene, camera, renderer;
   let particleSystem, geometry, material;
   let positions, velocities, seeds;
   let particleCount = 26000;
@@ -288,13 +276,7 @@
   const HAND_MAX = 2;
   const handForces = [];
   for (let i = 0; i < HAND_MAX; i++) {
-    handForces.push({
-      active: false,
-      x: 0,
-      y: 0,
-      z: 0,
-      tension: 0
-    });
+    handForces.push({ active: false, x: 0, y: 0, z: 0, tension: 0 });
   }
 
   let lastTime = performance.now();
@@ -322,17 +304,13 @@
       typeof navigator.hardwareConcurrency === "number" &&
       navigator.hardwareConcurrency <= 4;
     isLowPowerDevice = isMobile || fewCores;
-    if (isLowPowerDevice) {
-      particleCount = 16000;
-    }
+    if (isLowPowerDevice) particleCount = 16000;
   }
 
   function init() {
     const container = document.getElementById("three-container");
 
     scene = new THREE.Scene();
-    scene.fog = null;
-
     camera = new THREE.PerspectiveCamera(
       55,
       window.innerWidth / window.innerHeight,
@@ -351,22 +329,6 @@
     renderer.setClearColor(0x000000, 1);
     container.appendChild(renderer.domElement);
 
-    composer = new THREE.EffectComposer(renderer);
-    renderPass = new THREE.RenderPass(scene, camera);
-    composer.addPass(renderPass);
-
-    const bloomStrength = isLowPowerDevice ? 1.2 : 1.7;
-    const bloomRadius = 0.42;
-    const bloomThreshold = 0.0;
-
-    bloomPass = new THREE.UnrealBloomPass(
-      new THREE.Vector2(window.innerWidth, window.innerHeight),
-      bloomStrength,
-      bloomRadius,
-      bloomThreshold
-    );
-    composer.addPass(bloomPass);
-
     window.addEventListener("resize", onWindowResize);
     buildParticles(particleCount);
     initHandsModel();
@@ -381,13 +343,9 @@
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
-    composer.setSize(window.innerWidth, window.innerHeight);
-    bloomPass.setSize(window.innerWidth, window.innerHeight);
   }
 
-  // ==========================================================
-  // PARTICLE FIELD – STARFIELD STYLE
-  // ==========================================================
+  // ========= PARTICLES =========
   function buildParticles(count) {
     particleCount = count;
     positions = new Float32Array(count * 3);
@@ -428,18 +386,12 @@
       uniform float uTime;
       uniform float uPointSize;
       uniform float uNoiseStrength;
-
-      float hash(float n) {
-        return fract(sin(n) * 43758.5453);
-      }
-
+      float hash(float n) { return fract(sin(n) * 43758.5453); }
       void main() {
         vec3 pos = position;
-
         float n = hash(aSeed * 91.7 + uTime * 0.07);
         n = n * 2.0 - 1.0;
         pos += normalize(pos + 0.0001) * n * uNoiseStrength * 0.03;
-
         vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
         float size = uPointSize * (280.0 / -mvPosition.z);
         gl_PointSize = size;
@@ -449,17 +401,13 @@
 
     const fragmentShader = `
       uniform vec3 uColor;
-
       void main() {
         vec2 coord = gl_PointCoord - 0.5;
         float d = length(coord);
-
         float alpha = smoothstep(0.5, 0.0, d);
         if (d > 0.5) discard;
-
         float core = smoothstep(0.25, 0.0, d);
         vec3 col = uColor * (0.6 + 0.4 * core);
-
         gl_FragColor = vec4(col, alpha);
       }
     `;
@@ -482,22 +430,18 @@
     buildParticles(particleCount);
   }
 
-  // ==========================================================
-  // HAND TRACKING – LOCAL FORCE FIELD
-  // ==========================================================
+  // ========= HAND TRACKING =========
   function initHandsModel() {
     hands = new Hands({
       locateFile: (file) =>
         `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
     });
-
     hands.setOptions({
       maxNumHands: 2,
       modelComplexity: 1,
       minDetectionConfidence: 0.6,
       minTrackingConfidence: 0.5
     });
-
     hands.onResults(onHandResults);
   }
 
@@ -508,21 +452,16 @@
       cameraBtn.classList.remove("btn-toggle-on");
       return;
     }
-
     try {
       cameraLabel.textContent = "Requesting…";
-
       videoStream = await navigator.mediaDevices.getUserMedia({
         video: { width: 640, height: 480 }
       });
-
       videoElement.srcObject = videoStream;
       await videoElement.play();
-
       gestureControlEnabled = true;
       cameraLabel.textContent = "Camera on";
       cameraBtn.classList.add("btn-toggle-on");
-
       handDetectionActive = true;
       requestAnimationFrame(handFrameLoop);
     } catch (err) {
@@ -555,47 +494,36 @@
 
   function onHandResults(results) {
     if (!gestureControlEnabled) return;
-
     const landmarksList = results.multiHandLandmarks || [];
     handForces.forEach(h => (h.active = false));
-
     if (!landmarksList.length) {
       lastTensionAverage = null;
       return;
     }
-
     let tensionSum = 0;
-
     for (let h = 0; h < Math.min(landmarksList.length, HAND_MAX); h++) {
       const lm = landmarksList[h];
       const hf = handForces[h];
-
       const wrist = lm[0];
       const indexMcp = lm[5];
       const centerX = (wrist.x + indexMcp.x) * 0.5;
       const centerY = (wrist.y + indexMcp.y) * 0.5;
-
       const ndcX = (centerX - 0.5) * 2.1;
       const ndcY = (0.5 - centerY) * 2.1;
       const z = 0.0;
-
       const indexTip = lm[8];
       const pinkyTip = lm[20];
       const span = Math.hypot(indexTip.x - pinkyTip.x, indexTip.y - pinkyTip.y);
       const tension = clamp((span - 0.03) / 0.22, 0, 1);
-
       hf.active = true;
       hf.x = ndcX;
       hf.y = ndcY;
       hf.z = z;
       hf.tension = tension;
-
       tensionSum += tension;
     }
-
     const avgTension = tensionSum / landmarksList.length;
     const now = performance.now();
-
     if (
       lastTensionAverage !== null &&
       lastTensionAverage > 0.65 &&
@@ -605,31 +533,21 @@
       triggerGlobalBurst();
       lastSnapTime = now;
     }
-
     lastTensionAverage = avgTension;
   }
 
-  // ==========================================================
-  // UI & MANUAL CONTROL
-  // ==========================================================
+  // ========= UI & MANUAL CONTROL =========
   function setupUI() {
     densitySlider.value = particleCount;
-
     densitySlider.addEventListener("input", () => {
       const newCount = parseInt(densitySlider.value, 10);
       buildParticles(newCount);
     });
-
     cameraBtn.addEventListener("click", () => {
-      if (gestureControlEnabled) {
-        stopGestureCamera();
-      } else {
-        startGestureCamera();
-      }
+      if (gestureControlEnabled) stopGestureCamera();
+      else startGestureCamera();
     });
-
-    resetBtn.addEventListener("click", () => resetParticles());
-
+    resetBtn.addEventListener("click", resetParticles);
     snapBtn.addEventListener("click", () => {
       try {
         const dataURL = renderer.domElement.toDataURL("image/png");
@@ -647,42 +565,32 @@
 
   function setupInteractions() {
     const canvas = renderer.domElement;
-
     function updateManualForceFromEvent(e) {
       const rect = canvas.getBoundingClientRect();
       const x = (e.clientX - rect.left) / rect.width;
       const y = (e.clientY - rect.top) / rect.height;
-
       manualForcePos.x = (x - 0.5) * 2.1;
       manualForcePos.y = (0.5 - y) * 2.1;
       manualForcePos.z = 0.0;
     }
-
     canvas.addEventListener("pointerdown", (e) => {
       if (!gestureControlEnabled) {
         manualForceActive = true;
         updateManualForceFromEvent(e);
       }
     });
-
     canvas.addEventListener("pointermove", (e) => {
       if (!gestureControlEnabled && manualForceActive) {
         updateManualForceFromEvent(e);
       }
     });
-
-    window.addEventListener("pointerup", () => {
-      manualForceActive = false;
-    });
-
+    window.addEventListener("pointerup", () => (manualForceActive = false));
     window.addEventListener("keydown", (e) => {
       if (e.key.toLowerCase() === "c") cameraBtn.click();
     });
   }
 
-  // ==========================================================
-  // PHYSICS LOOP – LOCAL REPULSION + SPRING BACK
-  // ==========================================================
+  // ========= PHYSICS =========
   function triggerGlobalBurst() {
     const burstStrength = 2.2;
     for (let i = 0; i < particleCount; i++) {
@@ -690,19 +598,13 @@
       const x = positions[idx];
       const y = positions[idx + 1];
       const z = positions[idx + 2];
-
       const len = Math.sqrt(x * x + y * y + z * z) + 0.0001;
-      const dirX = x / len;
-      const dirY = y / len;
-      const dirZ = z / len;
-
+      const dirX = x / len, dirY = y / len, dirZ = z / len;
       const s = (Math.random() * 0.6 + 0.4) * burstStrength;
-
       velocities[idx] += dirX * s;
       velocities[idx + 1] += dirY * s;
       velocities[idx + 2] += dirZ * s;
     }
-
     uniforms.uPointSize.value = 1.6;
     uniforms.uNoiseStrength.value = 1.0;
     setTimeout(() => {
@@ -713,42 +615,28 @@
 
   function animate() {
     requestAnimationFrame(animate);
-
     const now = performance.now();
     const dt = Math.min((now - lastTime) / 1000, 1 / 30);
     lastTime = now;
-
     uniforms.uTime.value += dt;
     updateParticlePhysics(dt);
-
     if (geometry) geometry.attributes.position.needsUpdate = true;
-    composer.render();
+    renderer.render(scene, camera);
   }
 
   function updateParticlePhysics(dt) {
     if (!positions || !velocities) return;
-
     const activeHands = [];
-
     if (gestureControlEnabled) {
       for (let h = 0; h < HAND_MAX; h++) {
         const hf = handForces[h];
         if (!hf.active) continue;
-
         const tension = hf.tension;
         const radius = 0.35 + tension * 0.75;
         const strength = 7.0 + tension * 11.0;
-
-        activeHands.push({
-          x: hf.x,
-          y: hf.y,
-          z: hf.z,
-          radius,
-          strength
-        });
+        activeHands.push({ x: hf.x, y: hf.y, z: hf.z, radius, strength });
       }
     }
-
     if (!gestureControlEnabled && manualForceActive) {
       activeHands.push({
         x: manualForcePos.x,
@@ -758,16 +646,13 @@
         strength: 12.0
       });
     }
-
     const springStrength = 0.55;
     const damping = 0.94;
-
     for (let i = 0; i < particleCount; i++) {
       const idx = i * 3;
       let px = positions[idx];
       let py = positions[idx + 1];
       let pz = positions[idx + 2];
-
       let vx = velocities[idx];
       let vy = velocities[idx + 1];
       let vz = velocities[idx + 2];
@@ -782,36 +667,21 @@
         const dy = py - hf.y;
         const dz = pz - hf.z;
         const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) + 0.0001;
-
         if (dist < hf.radius) {
           const factor = (hf.radius - dist) / hf.radius;
-          const dirX = dx / dist;
-          const dirY = dy / dist;
-          const dirZ = dz / dist;
-
+          const dirX = dx / dist, dirY = dy / dist, dirZ = dz / dist;
           const accel = hf.strength * factor;
-
           vx += dirX * accel * dt;
           vy += dirY * accel * dt;
           vz += dirZ * accel * dt;
         }
       }
 
-      vx *= damping;
-      vy *= damping;
-      vz *= damping;
+      vx *= damping; vy *= damping; vz *= damping;
+      px += vx * dt; py += vy * dt; pz += vz * dt;
 
-      px += vx * dt;
-      py += vy * dt;
-      pz += vz * dt;
-
-      positions[idx] = px;
-      positions[idx + 1] = py;
-      positions[idx + 2] = pz;
-
-      velocities[idx] = vx;
-      velocities[idx + 1] = vy;
-      velocities[idx + 2] = vz;
+      positions[idx] = px; positions[idx + 1] = py; positions[idx + 2] = pz;
+      velocities[idx] = vx; velocities[idx + 1] = vy; velocities[idx + 2] = vz;
     }
   }
 
