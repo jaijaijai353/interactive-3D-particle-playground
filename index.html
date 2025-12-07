@@ -685,11 +685,17 @@
     }
   }
 
-  function clamp(v, min, max) {
-    return v < min ? min : (v > max ? max : v);
-  }
+ function clamp(v, min, max) {
+  return v < min ? min : (v > max ? max : v);
+}
 
+// Make sure init always runs, even if the script loads after DOMContentLoaded.
+if (document.readyState === "loading") {
   window.addEventListener("DOMContentLoaded", init);
+} else {
+  init();
+}
+
 </script>
 </body>
 </html>
